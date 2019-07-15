@@ -124,7 +124,6 @@ public class V2MetaAnalysis {
     boolean groupOutput;// true if all output is to go to one file
     boolean stdout;     // write output to standard out
     Path outputFile;    // file in which the output is to go
-    Writer output;      // where to place output
     Writer commentary;  // where to place errors and diagnostics
 
     /**
@@ -218,7 +217,6 @@ public class V2MetaAnalysis {
         stdout = false;
         groupOutput = false;
         outputFile = null;
-        output = null;
         commentary = null;
         chatty = false;
         error = false;
@@ -239,7 +237,7 @@ public class V2MetaAnalysis {
      */
     private void configure(String args[]) throws AppFatal {
         int i;
-        String usage = "AnalyseVEOs [-e] [-r] [-u] [-v] [-d] [-c] -cf controlFile [-od outputDir] [-xml|-json|-csv|-tsv] [-o outputFile|-stdout] [files*]";
+        String usage = "V2MetaAnalysis [-e] [-r] [-u] [-v] [-d] [-c] -cf controlFile [-od outputDir] [-xml|-json|-csv|-tsv] [-o outputFile|-stdout] [files*]";
 
         // process command line arguments
         i = 0;
@@ -368,32 +366,46 @@ public class V2MetaAnalysis {
 
         // if no output format specified, see if you can infer it from the file
         // extension of the specified output file
-        if (outputType == OutputType.UNDEFINED) {
-            if (outputFile != null) {
-                String s = outputFile.getFileName().toString();
-                i = s.lastIndexOf(".");
-                if (i != -1) {
-                    s = s.substring(i + 1).toLowerCase();
-                    switch (s) {
-                        case "xml":
+        if (outputFile != null) {
+            String s = outputFile.getFileName().toString();
+            i = s.lastIndexOf(".");
+            if (i != -1) {
+                s = s.substring(i + 1).toLowerCase();
+                switch (s) {
+                    case "xml":
+                        if (outputType == OutputType.UNDEFINED || outputType == OutputType.XML) {
                             outputType = OutputType.XML;
-                            LOG.log(Level.INFO, "Output type is XML (set from output file name)");
-                            break;
-                        case "json":
+                        } else {
+                            throw new AppFatal(classname, 6, "Output file name specified with a file extension (.xml) that conflicts with requested output format");
+                        }
+                        LOG.log(Level.INFO, "Output type is XML (set from output file name)");
+                        break;
+                    case "json":
+                        if (outputType == OutputType.UNDEFINED || outputType == OutputType.JSON) {
                             outputType = OutputType.JSON;
-                            LOG.log(Level.INFO, "Output type is JSON (set from output file name)");
-                            break;
-                        case "tsv":
+                        } else {
+                            throw new AppFatal(classname, 6, "Output file name specified with a file extension (.json) that conflicts with requested output format");
+                        }
+                        LOG.log(Level.INFO, "Output type is JSON (set from output file name)");
+                        break;
+                    case "tsv":
+                        if (outputType == OutputType.UNDEFINED || outputType == OutputType.TSV) {
                             outputType = OutputType.TSV;
-                            LOG.log(Level.INFO, "Output type is text with tab separated valuses (TSV) (set from output file name)");
-                            break;
-                        case "csv":
+                        } else {
+                            throw new AppFatal(classname, 6, "Output file name specified with a file extension (.tsv) that conflicts with requested output format");
+                        }
+                        LOG.log(Level.INFO, "Output type is text with tab separated valuses (TSV) (set from output file name)");
+                        break;
+                    case "csv":
+                        if (outputType == OutputType.UNDEFINED || outputType == OutputType.CSV) {
                             outputType = OutputType.CSV;
-                            LOG.log(Level.INFO, "Output type is text with comma separated valuses (CSV) (set from output file name)");
-                            break;
-                        default:
-                            break;
-                    }
+                        } else {
+                            throw new AppFatal(classname, 6, "Output file name specified with a file extension (.csv) that conflicts with requested output format");
+                        }
+                        LOG.log(Level.INFO, "Output type is text with comma separated valuses (CSV) (set from output file name)");
+                        break;
+                    default:
+                        break;
                 }
             }
         }
@@ -438,6 +450,7 @@ public class V2MetaAnalysis {
      * processing was pointless
      */
     public void processVEOs() throws AppFatal {
+        Writer output;
         int i;
         String name, safe;
         Path file;
@@ -469,7 +482,6 @@ public class V2MetaAnalysis {
         firstVEO = true;
         for (i = 0; i < fileOrDirectories.size(); i++) {
             name = fileOrDirectories.get(i);
-            System.out.println("Processing: " + name);
             if (name == null) {
                 continue;
             }
@@ -477,7 +489,7 @@ public class V2MetaAnalysis {
             try {
                 file = Paths.get(safe);
             } catch (InvalidPathException ipe) {
-                System.out.println("File or directory name '" + safe + "' is invalid: " + ipe.getMessage() + " Ignored.");
+                LOG.log(Level.WARNING, "File or directory name ''{0}'' is invalid: {1} Ignored.", new Object[]{safe, ipe.getMessage()});
                 continue;
             }
             processFileOrDirectory(file, output);
@@ -579,7 +591,6 @@ public class V2MetaAnalysis {
                     throw new AppFatal("An output type must be specified.");
             }
             Path p = outputDir.resolve(filename + "." + ext);
-            LOG.log(Level.INFO, ("New file " + p.toString()));
             try {
                 if (Files.exists(p) && Files.isSameFile(p, file)) {
                     throw new AppError("The input file (" + file.toString() + ") is the same as the output file (" + p.toString() + ")");
@@ -595,10 +606,10 @@ public class V2MetaAnalysis {
         } else {
             w = output;
         }
-        
+
         // clear the targets
         targets.clear();
-        
+
         // check to see if we are output the filepath or filename
         targets.setFile(file.normalize().toAbsolutePath());
 
@@ -657,6 +668,7 @@ public class V2MetaAnalysis {
      * @throws AppFatal shouldn't happen, but something really bad occurred
      */
     private Writer openOutput(Path file) throws AppFatal, AppError, FileNotFoundException {
+        Writer output;
         OutputStreamWriter osw;
         OutputStream os;
         Path p;
@@ -664,6 +676,7 @@ public class V2MetaAnalysis {
         // if a specific output file has been specified, open it, otherwise use stdout
         if (file != null) {
             os = new FileOutputStream(file.toFile());
+            LOG.log(Level.INFO, ("New file " + file.toString()));
 
             // otherwise, if output to standard out requested, use that
         } else if (stdout) {
@@ -697,7 +710,6 @@ public class V2MetaAnalysis {
             default:
                 throw new AppFatal("An output type must be specified.");
         }
-
         return output;
     }
 
@@ -806,7 +818,7 @@ public class V2MetaAnalysis {
                 } else {
                     deflt = tokens[1];
                 }
-                
+
                 // see if an alternative elemPath is specified
                 if (tokens.length < 3) {
                     tag = null;
@@ -823,14 +835,14 @@ public class V2MetaAnalysis {
                 }
             }
         } catch (AppFatal ae) {
-            throw new AppFatal(classname, method, 3, "Failed reading control file: "+ae.getMessage());
+            throw new AppFatal(classname, method, 3, "Failed reading control file: " + ae.getMessage());
         } catch (FileNotFoundException e) {
             throw new AppFatal(classname, method, 2, "Failed to open template file '" + controlFile.toAbsolutePath().toString() + "'" + e.toString());
         } catch (IOException ioe) {
             throw new AppFatal(classname, method, 1, "unexpected error: " + ioe.toString());
         }
         for (i = 0; i < targets.size(); i++) {
-            System.out.println("Looking for " + targets.get(i).elemPath);
+            LOG.log(Level.FINE, "Looking for {0}", targets.get(i).elemPath);
         }
     }
 

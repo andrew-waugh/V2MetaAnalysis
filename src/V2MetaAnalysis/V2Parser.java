@@ -11,8 +11,8 @@ import VERSCommon.HandleElement;
 import VERSCommon.XMLConsumer;
 import VERSCommon.XMLParser;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Stack;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 
@@ -26,6 +26,7 @@ public class V2Parser implements XMLConsumer {
 
     XMLParser xmlp;             // the XML parser
     Target targets;  // elements of interest from VEOs
+    private final static Logger LOG = Logger.getLogger("V2MetaAnalysis.V2MetaAnalysis");
 
     /**
      * Construct a new V2 VEO parser
@@ -90,15 +91,15 @@ public class V2Parser implements XMLConsumer {
     @Override
     public void endElement(String elementPath, String value, String element) throws SAXException {
         int i;
+        String s;
 
         // remember the value harvested (null if none)
         for (i = 0; i < targets.size(); i++) {
             if (targets.get(i).matchElemPath(elementPath)) {
-                System.out.print("Harvesting " + elementPath);
                 if (value != null) {
-                    System.out.println(" '" + value + "'");
+                    LOG.log(Level.FINE, "Harvesting {0} ''{1}''", new Object[]{elementPath, value});
                 } else {
-                    System.out.println(" <null>");
+                    LOG.log(Level.FINE, "Harvesting {0} <Null>", elementPath);
                 }
                 if (value != null) {
                     targets.get(i).value.add(value);
